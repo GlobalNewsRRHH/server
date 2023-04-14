@@ -1,4 +1,5 @@
 const { generateToken } = require('../utils/token')
+const { verifyToken } = require('../utils/token')
 const { generateString } = require('../utils/randomString')
 const { ValidationError } = require('sequelize')
 const {
@@ -12,26 +13,59 @@ const {
 } = require('../models')
 
 const allUser = async (req, res, next) => {
+  let user
+
+  const token = req.cookies.token
+  const { id, isAdmin } = verifyToken(token)
+
   try {
-    const user = await User.findAll({
-      where: { deactivated_at: null, isAdmin: false },
-      include: [
-        { model: Position, as: 'position' },
-        { model: Team, as: 'team' },
-        { model: Category, as: 'category' },
-        { model: Office, as: 'office' },
-        { model: User, as: 'leader' },
-      ],
-      order: [['id', 'ASC']],
-    })
-    res.send(user)
+    if (isAdmin) {
+      user = await User.findAll({
+        where: {
+          deactivated_at: null,
+          id: {
+            [Sequelize.Op.not]: id,
+          },
+        },
+        include: [
+          { model: Position, as: 'position' },
+          { model: Team, as: 'team' },
+          { model: Category, as: 'category' },
+          { model: Office, as: 'office' },
+          { model: User, as: 'leader' },
+        ],
+        order: [['id', 'ASC']],
+      })
+    } else {
+      user = await User.findAll({
+        where: {
+          deactivated_at: null,
+          isAdmin: {
+            [Sequelize.Op.not]: true,
+          },
+        },
+        include: [
+          { model: Position, as: 'position' },
+          { model: Team, as: 'team' },
+          { model: Category, as: 'category' },
+          { model: Office, as: 'office' },
+          { model: User, as: 'leader' },
+        ],
+        order: [['id', 'ASC']],
+      })
+    }
   } catch (error) {
     next(error)
   }
+  return res.send(user)
 }
 
 const allEmpleados = async (req, res, next) => {
   try {
+    user = await User.findAll({
+      where: {
+        leaderId: req.params.id,
+      },
     const user = await User.findAll({
       where: { leaderId: req.params.id },
       include: [
@@ -50,24 +84,29 @@ const allEmpleados = async (req, res, next) => {
 }
 
 const getAllUsersDesactivated = async (req, res, next) => {
-  try {
-    const getUserDesactivated = await User.findAll({
-      attributes: [
-        'id',
-        'firstName',
-        'lastName',
-        'email',
-        'image',
-        'fileNumber',
-        'isAdmin',
-        'deactivated_at',
-        'shift',
-      ],
-      where: {
-        deactivated_at: {
-          [Sequelize.Op.ne]: null,
-        },
+  const token = req.cookies.token
+  const { id } = verifyToken(token)
+
+  const getUserDesactivated = await User.findAll({
+    attributes: [
+      'id',
+      'firstName',
+      'lastName',
+      'email',
+      'image',
+      'fileNumber',
+      'isAdmin',
+      'deactivated_at',
+      'shift',
+    ],
+    where: {
+      deactivated_at: {
+        [Sequelize.Op.ne]: null,
       },
+      id: {
+        [Sequelize.Op.not]: id,
+      },
+    },
       include: [
         { model: Position, as: 'position', attributes: ['id', 'name'] },
         { model: Team, as: 'team', attributes: ['id', 'name'] },
@@ -102,21 +141,49 @@ const getAllUsersDesactivated = async (req, res, next) => {
 }
 
 const includeDeactivated = async (req, res, next) => {
+  let user
+
+  const token = req.cookies.token
+  const { id, isAdmin } = verifyToken(token)
+
   try {
-    const user = await User.findAll({
-      include: [
-        { model: Position, as: 'position' },
-        { model: Team, as: 'team' },
-        { model: Category, as: 'category' },
-        { model: Office, as: 'office' },
-        { model: User, as: 'leader' },
-      ],
-      order: [['id', 'ASC']],
-    })
-    return res.send(user)
+    if (isAdmin) {
+      user = await User.findAll({
+        where: {
+          id: {
+            [Sequelize.Op.not]: id,
+          },
+        },
+        include: [
+          { model: Position, as: 'position' },
+          { model: Team, as: 'team' },
+          { model: Category, as: 'category' },
+          { model: Office, as: 'office' },
+          { model: User, as: 'leader' },
+        ],
+        order: [['id', 'ASC']],
+      })
+    } else {
+      user = await User.findAll({
+        where: {
+          isAdmin: {
+            [Sequelize.Op.not]: true,
+          },
+        },
+        include: [
+          { model: Position, as: 'position' },
+          { model: Team, as: 'team' },
+          { model: Category, as: 'category' },
+          { model: Office, as: 'office' },
+          { model: User, as: 'leader' },
+        ],
+        order: [['id', 'ASC']],
+      })
+    }
   } catch (error) {
     next(error)
   }
+  return res.send(user)
 }
 
 const oneUser = async (req, res, next) => {
